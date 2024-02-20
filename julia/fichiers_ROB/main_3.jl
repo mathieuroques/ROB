@@ -1,14 +1,14 @@
 using JuMP
-using GLPK
+using CPLEX
 
-N=8;
-Nm=4;
-Nf=4;
-C=1;
-G=5;
-A=2;
-T=50;
-init=0.001;
+N=8; #nombre d'individus dans la population
+Nm=4; #nombre males
+Nf=4; #nombre femmes
+C=1; #nombre de paires de chromosomes
+G=5;  #nombre de locus par chromosomes
+A=2; #nombre d'allèles par gène 
+T=50; #h
+init=0.001; #theta 1
 
 M = [
     [1 1 1 1 2;
@@ -100,41 +100,39 @@ M = [
      8 1 5 2 1]
 ]
 
-function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Array{Int64}})
+function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Matrix{Int64}})
 
     # Create a JuMP model
-    model = Model(GLPK.Optimizer)
-    # Limite le temps d'exécution à 60 secondes
-    set_time_limit_sec(model, 60.0)
+    time_start = time()
+    model = Model(CPLEX.Optimizer)
 
     # Define variables
-    @variable(model, x[1:N], Int) # nombre de progénitures
+    @variable(model, x[1:N]>=0, Int) # nombre de progénitures
     @variable(model, P[1:A,1:G]>=0) # proba que l'allèle disparaisse
     @variable(model, t[1:A,1:G]) # variable de linéarisation
     
 
     # Define objective function
-    @objective(model, Min, (1/G*A)*sum(P[j,i] for i in 1:G for j in 1:A))
+    @objective(model, Min, (1/(G*A))*sum(P[j,i] for i in 1:G for j in 1:A))
 
     # Define constraints
     for i in 1:G
         for j in 1:A
+            # Probabilité d'extinction
             @constraint(model, P[j, i] >= t[j, i] - sum(x[k] for k in 1:N if ((M[k][i*2-1,5] == j)&&(M[k][i*2,5] == j)) ))
             @constraint(model, P[j,i]<=1)
+            # Relaxation
             for r in 1:T
-                @constraint(model, log(init*((T-r)/(T-1))) + (1/(init*((T-r)/(T-1))))*(t[j,i]-init*((T-r)/(T-1))) >= sum(x[k] * log(0.5) for k in 1:N if ((M[k][i*2-1,5] == j)+(M[k][i*2,5] == j))==1))
+                theta_r = init^((T-r)/(T-1))
+                @constraint(model, log(theta_r) + (1/theta_r)*(t[j,i]-theta_r) >= sum(x[k] * log(0.5) for k in 1:N if ((M[k][i*2-1,5] == j)+(M[k][i*2,5] == j))==1))
             end
-            
         end
     end
 
-#     Jeanne, douce étoile dans le ciel, Ton nom résonne comme une merveille. Ton sourire illumine nos jours, Et ton amour remplit nos cœurs.
-
-# Jeanne, tu es une fleur épanouie, Ta présence est une mélodie. Ton regard brille d'une lueur, Qui éclaire notre chemin avec douceur.
-
-# Jeanne, tu es une force tranquille, Une âme noble et subtile. Ta bienveillance est un trésor, Qui nous guide vers un avenir meilleur.
-
-# Jeanne, tu es une inspiration, Un rayon de soleil dans notre horizon. Que ta vie soit remplie de bonheur, Et que chaque jour soit une douceur.
+    # Progéniture max / individu
+    for k in 1:N
+        @constraint(model, x[k]==2)
+    end
 
     @constraint(model, sum(x[k] for k in 1:N) == N)
     @constraint(model, sum(x[h] for h in 1:Nm) == sum(x[f] for f in Nm+1:N))
@@ -149,6 +147,9 @@ function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::F
         solution[k] = value(x[k])
     end
 
+    time_end = time()
+    execution_time = time_end - time_start
+    println("Temps d'execution : ", execution_time)
 
     return solution
 
