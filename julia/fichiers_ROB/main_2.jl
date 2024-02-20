@@ -1,5 +1,5 @@
 using JuMP
-using GLPK
+using CPLEX
 
 # Données
 c = [7 3 10 10 2 8 6 4 5 5;
@@ -28,7 +28,7 @@ function distance_entre_centres(i1, j1, i2, j2)
 end
 
 function solve(n::Int,Amin::Int,Amax::Int,B::Int,lambda::Int,M::Float64,c::Matrix)
-    model = Model(GLPK.Optimizer)
+    model = Model(CPLEX.Optimizer)
     # Limite le temps d'exécution à 60 secondes
     # set_time_limit_sec(model, 60.0)
 
@@ -36,7 +36,7 @@ function solve(n::Int,Amin::Int,Amax::Int,B::Int,lambda::Int,M::Float64,c::Matri
     @variable(model, x[1:n, 1:n], Bin) #zone de coordonnées i,j sélectionnée
     @variable(model, y[1:n, 1:n, 1:n, 1:n], Bin) #zones de coordonnées i,j et k,l toutes les deux sélectionnées
     @variable(model, z[1:n, 1:n]) #linéarisation du min
-    @variable(model, d_tilde[1:n, 1:n, 1:n, 1:n]) #distance
+    @variable(model, d_tilde[1:n, 1:n, 1:n, 1:n]) #distance entre les zones de coordonnées i,j et k;l
 
     ### Objectif
     @objective(model, Max, sum(z[i,j] for i in 1:n for j in 1:n) -lambda*sum(x[i,j] for i in 1:n for j in 1:n))
@@ -46,9 +46,10 @@ function solve(n::Int,Amin::Int,Amax::Int,B::Int,lambda::Int,M::Float64,c::Matri
     @constraint(model, sum(x[i,j] for i in 1:n for j in 1:n)<=Amax)
     @constraint(model, sum(x[i,j] for i in 1:n for j in 1:n)>=Amin)
 
-    # Coûts
+    # Budget max
     @constraint(model, sum(10*x[i,j]*c[i,j] for i in 1:n for j in 1:n)<=B)
 
+    # Linéarisations
     for i in 1:n
         for j in 1:n
             for k in 1:n
@@ -64,10 +65,7 @@ function solve(n::Int,Amin::Int,Amax::Int,B::Int,lambda::Int,M::Float64,c::Matri
                     #Linéarisation du min
                     if (i,j)!=(k,l)
                         @constraint(model,z[i,j]<=d_tilde[i,j,k,l])
-
                     end
-
-
                 end
             end
         end
@@ -100,6 +98,8 @@ end
 
 
 solve(n, Amin, Amax, B, lambda0, M, c)
+println("Nombre de noeuds explorés : ",JuMP.node_count(model))
+
 
 
 

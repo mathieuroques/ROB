@@ -1,6 +1,7 @@
 using JuMP
 using GLPK
 using CPLEX
+
 m = 10
 n = 10
 p = 3 # rare species
@@ -30,7 +31,6 @@ c = [6 6 6 4 4 4 4 8 8 8;
      4 4 4 6 6 6 6 5 5 5;
      4 4 4 6 6 6 6 5 5 5;
      4 4 4 6 6 6 6 5 5 5]
-     
 # Tableau de probabilités p[k, i, j]
 proba = zeros(p+q, m, n)
 
@@ -43,8 +43,6 @@ function solve(m::Int, n::Int, p::Int, q::Int, alpha::Vector{Float64}, proba::Ar
     # Create a JuMP model
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPX_PARAM_MIPINTERVAL", 10)
-    set_optimizer_attribute(model, "CPX_PARAM_MIPDISPLAY", 1)
-    
 
     time_begin = time()
 
@@ -99,34 +97,34 @@ function solve(m::Int, n::Int, p::Int, q::Int, alpha::Vector{Float64}, proba::Ar
         #     println("")
         #     println("_____________________________________________")
         # end
+
         # println(y_opt)
         # println("Optimal solution: x = $x_opt, y = $y_opt")
         println("Objective value: ", objective_value(model))
         # println("Objective bound: ", objective_bound(model))
-        println("Probabilités de survie :")
-        println("Pour les espèces en danger")
-        for k in 1:p
-            print(round(1 - prod(1 - proba[k,i,j] * y_opt[i,j] for i in 1:m for j in 1:n),digits=2), " ")
-        end
-        println("")
-        println("Pour les espèces communes")
-        for k in p+1:p+q
-            print(round(1 - prod(1 - proba[k,i,j] * x_opt[i,j] for i in 1:m for j in 1:n),digits=2), " ")
-        end
+        # println("Probabilités de survie :")
+        # println("Pour les espèces en danger")
+        # for k in 1:p
+        #     print(round(1 - prod(1 - proba[k,i,j] * y_opt[i,j] for i in 1:m for j in 1:n),digits=2), " ")
+        # end
+        # println("")
+        # println("Pour les espèces communes")
+        # for k in p+1:p+q
+        #     print(round(1 - prod(1 - proba[k,i,j] * x_opt[i,j] for i in 1:m for j in 1:n),digits=2), " ")
+        # end
         println("")
         
 
     else
         println("Optimization problem could not be solved.")
-        println("Termination status: ", termination_status(model))
-        
+        println("MOI termination status: ", termination_status(model))
 
     end
     time_end = time()
-    println("Nombre de noeuds explorés : ",JuMP.node_count(model))
     return time_end - time_begin
 end
 
 execution_time = solve(m,n,p,q,alpha,proba,c)
 println("Temps d'execution : ", execution_time)
+
 
