@@ -147,30 +147,27 @@ function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::F
         solution[k] = value(x[k])
     end
 
+
+    println(termination_status(model) )
+    # Check if the problem was solved to optimality
+    if termination_status(model) == MOI.OPTIMAL
+        # Get the optimal solution
+        x_opt = JuMP.value.(x)
+        y_opt = JuMP.value.(y)
+        println(x_opt)
+        println(y_opt)
+        # println("Optimal solution: x = $x_opt, y = $y_opt")
+        println("Objective value: ", objective_value(model))
+        println("Objective bound: ", objective_bound(model))
+    else
+        println("Optimization problem could not be solved.")
+        println("MOI termination status: ", termination_status(model))
+    end
+
     time_end = time()
     execution_time = time_end - time_start
     println("Temps d'execution : ", execution_time)
-
     return solution
-
-
-    # println(termination_status(model) )
-    # # Check if the problem was solved to optimality
-    # if termination_status(model) == MOI.OPTIMAL
-    #     # Get the optimal solution
-    #     x_opt = JuMP.value.(x)
-    #     y_opt = JuMP.value.(y)
-    #     println(x_opt)
-    #     println(y_opt)
-    #     # println("Optimal solution: x = $x_opt, y = $y_opt")
-    #     println("Objective value: ", objective_value(model))
-    #     println("Objective bound: ", objective_bound(model))
-    # else
-    #     println("Optimization problem could not be solved.")
-    #     println("MOI termination status: ", termination_status(model))
-
-    # end
-
 
 end
 
