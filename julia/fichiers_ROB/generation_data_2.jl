@@ -28,7 +28,7 @@ for i in 1:nb_instances
     t = instances[i][7]
 
     # Ecrire dans le fichier    
-    file_name = "Instance_Projet_4"*"-"*string(N)*"-"*string(w1)*"-"*string(w2)*".txt"
+    file_name = "Instance_Projet_3"*"-"*string(N)*"-"*string(w1)*"-"*string(w2)*".txt"
     file = open(file_name,"w")
 
     write(file, "N=")

@@ -1,6 +1,7 @@
 using JuMP
 using CPLEX
 
+
 N=8; #nombre d'individus dans la population
 Nm=4; #nombre males
 Nf=4; #nombre femmes
@@ -100,7 +101,7 @@ M = [
      8 1 5 2 1]
 ]
 
-function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Matrix{Int64}})
+function solve_relax(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Matrix{Int64}})
 
     # Create a JuMP model
     time_start = time()
@@ -111,7 +112,6 @@ function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::F
     @variable(model, P[1:A,1:G]>=0) # proba que l'allèle disparaisse
     @variable(model, t[1:A,1:G]) # variable de linéarisation
     
-
     # Define objective function
     @objective(model, Min, (1/(G*A))*sum(P[j,i] for i in 1:G for j in 1:A))
 
@@ -131,34 +131,36 @@ function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::F
 
     # Progéniture max / individu
     for k in 1:N
-        @constraint(model, x[k]==2)
+        @constraint(model, x[k]<=3)
     end
 
-    @constraint(model, sum(x[k] for k in 1:N) == N)
-    @constraint(model, sum(x[h] for h in 1:Nm) == sum(x[f] for f in Nm+1:N))
-
+    # Population size
+    @constraint(model, c_taille_pop, sum(x[k] for k in 1:N) == 2*N)
+    @constraint(model, c_femme_homme, sum(x[h] for h in 1:Nm) == sum(x[f] for f in Nm+1:N))
 
     # Solve the model
     optimize!(model)
 
-    # Get the optimal solution
-    solution = Dict()
-    for k in 1:N
-        solution[k] = value(x[k])
-    end
+    println("\n","Paramètres du modèle : ")
+    println("h : ", T)
+    println("N : ", N)
+    println("G : ", G)
+    println("A : ", A,"\n")
 
-
-    println(termination_status(model) )
+    # println(termination_status(model) )
     # Check if the problem was solved to optimality
     if termination_status(model) == MOI.OPTIMAL
         # Get the optimal solution
         x_opt = JuMP.value.(x)
-        y_opt = JuMP.value.(y)
-        println(x_opt)
-        println(y_opt)
+        P = JuMP.value.(P)
+        # println(x_opt)
+        for i in size(P)
+            if P[i]!=0
+                println(i, " ", P[i])
+            end
+        end
         # println("Optimal solution: x = $x_opt, y = $y_opt")
-        println("Objective value: ", objective_value(model))
-        println("Objective bound: ", objective_bound(model))
+        println("Borne inférieure : ", objective_bound(model))
     else
         println("Optimization problem could not be solved.")
         println("MOI termination status: ", termination_status(model))
@@ -167,9 +169,87 @@ function solve(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::F
     time_end = time()
     execution_time = time_end - time_start
     println("Temps d'execution : ", execution_time)
-    return solution
+    println("Nombre de noeuds explorés : ",JuMP.node_count(model))
+
+    if termination_status(model) == MOI.OPTIMAL
+        return x_opt
+    end
 
 end
 
-solve(N,Nm,Nf,C,G,A,T,init,M)
 
+
+# Solution réalisable injectée dans le problème initial
+function solve_initial_pb(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Matrix{Int64}}, x_admissible::Vector{Float64})
+
+    # Create a JuMP model
+    time_start = time()
+    model = Model(CPLEX.Optimizer)
+
+    # Define variables
+    @variable(model, P[1:A,1:G]>=0) # proba que l'allèle disparaisse    
+
+    # Define objective function
+    @objective(model, Min, (1/(G*A))*sum(P[j,i] for i in 1:G for j in 1:A))
+
+    # Define constraints
+    for i in 1:G
+        for j in 1:A
+            # Probabilité d'extinction
+            @constraint(model, P[j, i] >= prod(0.5^x_admissible[k] for k in 1:N if ((M[k][i*2-1,5] == j)+(M[k][i*2,5] == j))==1)- sum(x_admissible[k] for k in 1:N if ((M[k][i*2-1,5] == j)&&(M[k][i*2,5] == j)) ))
+            @constraint(model, P[j,i]<=1)
+        end
+    end
+
+    # Solve the model
+    optimize!(model)
+
+    # println(termination_status(model) )
+    # Check if the problem was solved to optimality
+    if termination_status(model) == MOI.OPTIMAL
+        # Get the optimal solution
+        P = JuMP.value.(P)
+        somme = 0
+
+        for i in 1:10
+            if P[i]!=0
+                somme +=1
+            end
+        end  
+        println("Probabilité d'extinction non nulle pour ", somme, " allèles.")
+      
+
+        # println("Optimal solution: x = $x_opt, y = $y_opt")
+        println("Espérance du nombre d'allèles perdus : ", objective_value(model))
+        # println("Objective bound: ", objective_bound(model))
+    else
+        println("Optimization problem could not be solved.")
+        println("MOI termination status: ", termination_status(model))
+    end
+
+    time_end = time()
+    execution_time = time_end - time_start
+    println("Temps d'execution : ", execution_time)
+
+
+end
+
+
+
+function run(N::Int, Nm::Int, Nf::Int, C::Int, G::Int, A::Int, T::Int, init::Float64, M::Vector{Matrix{Int64}})
+    println("                                                                     ")
+    println("----------------------------MODELE RELACHE---------------------------")
+    println("                                                                     ")
+
+    x_admissible = solve_relax(N,Nm,Nf,C,G,A,T,init,M) #solution admissible pour la relaxation du problème à injecter dans le pb initial
+
+    println("                                                                     ")
+    println("----------------------------MODELE INITIAL---------------------------")
+    println("                                                                     ")
+
+    solve_initial_pb(N,Nm,Nf,C,G,A,T,init,M,x_admissible)
+end
+
+for h in [50,100,500]
+    run(N,Nm,Nf,C,G,A,h,init,M)
+end
