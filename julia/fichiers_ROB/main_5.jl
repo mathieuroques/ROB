@@ -98,9 +98,11 @@ function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax:
     solution = value.(x)
 
 
-    NbParcellesSelected = 0
+    ParcellesSelected = Vector{Int}()
     for p in 1:NbParcelles
-        NbParcellesSelected += (sum(solution[p,:,:])>0)
+        if sum(solution[p,:,:])>0
+            push!(ParcellesSelected, p)
+        end
     end
 
     
@@ -109,7 +111,7 @@ function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax:
     # Check if the problem was solved to optimality
     if termination_status(model) == MOI.OPTIMAL
         println("Objective value: ", objective_value(model))
-        println("Number of selected parcels: ", NbParcellesSelected)
+        println("Selected parcels: ", ParcellesSelected)
     else
         println("Optimization problem could not be solved.")
         println("MOI termination status: ", termination_status(model))
