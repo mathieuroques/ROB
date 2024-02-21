@@ -55,16 +55,12 @@ NbArc = size(arcs, 1)
 function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax::Int, C::Array{Int,1}, Demande::Array{Array{Int,1},1}, gamma::Array{Int,1})        
 
     time_start = time()
-    # Create a JuMP model
     model = Model(CPLEX.Optimizer)
-    # set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_ALL)
 
-    # Define variables
     @variable(model, x[1:NbParcelles, 1:T, 1:NbArc] >= 0, Bin)
-
-    # Define objective function
     @objective(model, Min, sum(sum(x[p, 1, i] for i in 1:NbArc if arcs[i][1] == sommets[1]) for p in 1:NbParcelles))
 
+    # Contrainte 0
     for p in 1:NbParcelles
         for arc in 1:NbArc
             if arcs[arc][1] != sommets[1]
@@ -97,10 +93,8 @@ function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax:
         end
     end
 
-    # Solve the optimization problem
+
     optimize!(model)
-
-
     solution = value.(x)
 
 
@@ -111,10 +105,10 @@ function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax:
 
     
     println(termination_status(model))
+
     # Check if the problem was solved to optimality
     if termination_status(model) == MOI.OPTIMAL
         println("Objective value: ", objective_value(model))
-        println("Objective bound: ", objective_bound(model))
         println("Number of selected parcels: ", NbParcellesSelected)
     else
         println("Optimization problem could not be solved.")
