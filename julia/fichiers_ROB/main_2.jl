@@ -1,122 +1,115 @@
 using JuMP
 using CPLEX
+using Colors
+using Plots
 
-# Données
-c = [7 3 10 10 2 8 6 4 5 5;
-     7 7 10 5 2 8 6 3 9 9;
-     7 3 4 6 3 2 4 9 7 8;
-     6 2 7 6 4 7 5 10 7 8;
-     2 4 3 4 9 6 4 9 8 4;
-     7 5 2 9 8 9 5 6 10 10;
-     5 2 3 7 9 9 4 9 6 3;
-     5 2 9 4 2 8 6 9 3 4;
-     9 6 5 4 5 6 8 9 6 6;
-     8 8 7 7 3 5 8 3 9 9]
+start_time = time()
+m = Model(CPLEX.Optimizer)
 
-n = 10
-Amin = 30
-Amax = 35
-B = 920
-# Amin = 20, Amax = 21, B = 520
-# Amin = 70, Amax = 75, B = 3500
-lambda0 = 20
-M = 1+sqrt(2)*n
+lambda=20
+n=20
+Amin=193
+Amax=212
+B=3089
+couts=[4 3 6 10 7 1 1 2 1 3 8 9 7 1 8 3 9 2 6 3; 7 5 4 2 2 3 2 8 5 9 2 2 5 6 6 5 1 5 8 4; 4 1 9 7 6 10 9 4 3 9 6 1 3 5 9 7 9 9 3 3; 7 2 1 10 9 4 5 1 4 9 2 8 8 4 8 6 5 10 6 9; 8 4 7 10 5 8 10 3 10 10 2 6 4 3 4 1 9 4 9 6; 8 10 1 7 4 2 2 3 10 3 2 8 2 3 8 8 1 9 9 1; 4 4 9 8 3 5 10 10 4 3 4 2 9 3 9 3 2 4 1 4; 7 4 8 5 3 10 8 4 9 3 7 6 6 8 3 5 3 5 8 8; 9 7 10 6 4 8 8 7 10 7 6 2 4 5 2 5 2 9 6 1; 1 10 10 5 9 4 10 6 6 3 8 8 4 7 6 9 10 4 8 6; 8 3 9 7 1 7 9 4 7 1 6 10 3 3 9 6 6 9 4 2; 1 4 9 1 2 8 9 1 6 1 2 2 8 10 10 5 9 9 2 8; 5 6 9 2 5 8 10 8 6 10 4 10 2 8 8 2 1 1 6 3; 3 9 5 4 8 7 1 6 8 7 5 4 3 1 2 10 4 2 2 1; 2 1 1 2 4 7 1 9 1 3 10 7 8 7 6 6 4 9 2 4; 1 8 3 4 5 8 4 10 5 4 2 6 10 2 4 10 7 9 3 10; 10 6 8 9 6 10 3 6 10 10 3 8 5 7 8 4 10 4 7 9; 2 5 7 2 4 2 3 8 1 5 4 9 6 9 9 8 7 3 10 9; 9 9 6 5 3 1 2 8 4 3 8 9 4 4 9 6 4 9 2 10; 6 2 9 2 5 4 5 7 6 9 1 9 3 1 9 9 8 8 7 6]
 
-function distance_entre_centres(i1, j1, i2, j2)
-    # Calcule la distance euclidienne entre deux points (i1, j1) et (i2, j2)
-    return sqrt((i1 - i2)^2 + (j1 - j2)^2)
+
+# lambda = 20
+# n = 10
+# Amin = 30
+# Amax = 35
+# B = 920
+# Amin = 20
+# Amax = 21
+# B = 520
+# Amin = 70
+# Amax = 75
+# B = 3500
+
+# couts = Matrix{Int64}([
+#     7 3 10 10 2 8 6 4 5 5;
+#     7 7 10 5 2 8 6 3 9 9;
+#     7 3 4 6 3 2 4 9 7 8;
+#     6 2 7 6 4 7 5 10 7 8;
+#     2 4 3 4 9 6 4 9 8 4;
+#     7 5 2 9 8 9 5 6 10 10;
+#     5 2 3 7 9 9 4 9 6 3;
+#     5 2 9 4 2 8 6 9 3 4;
+#     9 6 5 4 5 6 8 9 6 6;
+#     8 8 7 7 3 5 8 3 9 9
+# ]
+# )
+
+couts = 10*couts
+
+@variable(m, x[1:n, 1:n], Bin)
+@variable(m, y[1:n,1:n,1:n,1:n], Bin)
+
+@constraint(m, Amin <= sum(x[i,j] for i in 1:n for j in 1:n))
+@constraint(m, sum(x[i,j] for i in 1:n for j in 1:n) <= Amax)
+
+@constraint(m, sum(couts[i,j]*x[i,j] for i in 1:n for j in 1:n) <= B)
+
+@constraint(m, [i in 1:n, j in 1:n], sum( y[i,j,k,l] for k in 1:n for l in 1:n if (i!=k || j!=l) ) == x[i,j])
+@constraint(m, [i in 1:n, j in 1:n, k in 1:n, l in 1:n], y[i,j,k,l] <= x[k,l])
+
+
+v_lambda = 10
+
+function distance(y)
+    return sum(sqrt((i-k)^2+(j-l)^2)*y[i,j,k,l] for i in 1:n for j in 1:n for k in 1:n for l in 1:n)
 end
 
-function solve(n::Int,Amin::Int,Amax::Int,B::Int,lambda::Int,M::Float64,c::Matrix)
-    model = Model(CPLEX.Optimizer)
-    # Limite le temps d'exécution à 60 secondes
-    # set_time_limit_sec(model, 60.0)
-
-    ### Variables
-    @variable(model, x[1:n, 1:n], Bin) #zone de coordonnées i,j sélectionnée
-    @variable(model, y[1:n, 1:n, 1:n, 1:n], Bin) #zones de coordonnées i,j et k,l toutes les deux sélectionnées
-    @variable(model, z[1:n, 1:n]) #linéarisation du min
-    @variable(model, d_tilde[1:n, 1:n, 1:n, 1:n]) #distance entre les zones de coordonnées i,j et k;l
-
-    ### Objectif
-    @objective(model, Max, sum(z[i,j] for i in 1:n for j in 1:n) -lambda*sum(x[i,j] for i in 1:n for j in 1:n))
-
-    ### Contraintes
-    # Aires
-    @constraint(model, sum(x[i,j] for i in 1:n for j in 1:n)<=Amax)
-    @constraint(model, sum(x[i,j] for i in 1:n for j in 1:n)>=Amin)
-
-    # Budget max
-    @constraint(model, sum(10*x[i,j]*c[i,j] for i in 1:n for j in 1:n)<=B)
-
-    # Linéarisations
-    for i in 1:n
-        for j in 1:n
-            for k in 1:n
-                for l in 1:n
-                    # Linéarisation produit x[i,j]x[k,l]
-                    @constraint(model,y[i,j,k,l]<=x[i,j])
-                    @constraint(model,y[i,j,k,l]<=x[k,l])
-                    @constraint(model,y[i,j,k,l]>=x[i,j]+x[k,l]-1)
-                    @constraint(model,y[i,j,k,l]>=0)
-                    d_ijkl = distance_entre_centres(i,j,k,l)
-                    @constraint(model,d_tilde[i,j,k,l]==d_ijkl*y[i,j,k,l]+M*(1-y[i,j,k,l]))  
-                    
-                    #Linéarisation du min
-                    if (i,j)!=(k,l)
-                        @constraint(model,z[i,j]<=d_tilde[i,j,k,l])
-                    end
-                end
-            end
-        end
-    end
-
-
-    ### Résoudre le problème
-    optimize!(model)
-
-    # Affichage solution
-    if termination_status(model) == MOI.OPTIMAL
-        # Afficher la valeur de l'objectif
-        objectiveValue = objective_value(model)
-        println("Valeur de l'objectif : ", objectiveValue)
-
-        println("Aires protégées : ")
-        for i in 1:n
-            for j in 1:n
-                print(" ",JuMP.value(x[i,j]))
-            end
-            println("")
-            println("_____________________________________________")
-
-        end
-        return objectiveValue, JuMP.value(lambda), model
-    else
-        println("Aucun solution trouvée dans le temps imparti.")
-    end   
+function somme(x)
+    return sum(x[i,j] for i in 1:n for j in 1:n)
 end
 
+global compteur=0
+while  (v_lambda > 0.001 || v_lambda < - 0.001) 
+    global compteur +=1
+    @objective(m, Min, sum(sqrt((i-k)^2+(j-l)^2)*y[i,j,k,l] for i in 1:n for j in 1:n for k in 1:n for l in 1:n if ((i!=k) || (j!=l))) - lambda*sum(x[i,j] for i in 1:n for j in 1:n))
+    optimize!(m)
+    global feasible_solution_found = (primal_status(m) == MOI.FEASIBLE_POINT)
+    global isOpt = termination_status(m) == MOI.OPTIMAL
+    if feasible_solution_found
+        global v_lambda = JuMP.objective_value(m)
+        global vy = value.(y)
+        global vx = value.(x)
 
-solve(n, Amin, Amax, B, lambda0, M, c)
-println("Nombre de noeuds explorés : ",JuMP.node_count(model))
+        if v_lambda > 0 
+            global lambda = distance(vy)/somme(vx)
+            # println("vlambda ", v_lambda)
+            # println("Valeur fonction objective : ", JuMP.objective_value(m))
+            # println("valeur distance moyenne : ", lambda)
+            # println("v_lambda supérieur à 0")
+            continue
+        else 
+            # println("Valeurs x :")
+            # for i in 1:size(vx, 1)
+            #     for j in 1:size(vx, 1)
+            #         print(Int64(vx[i,j]>0.9), " ")
+            #     end
+            #     println()
+            # end
+            println("valeur distance moyenne : ")
+            global vy = value.(y)
+            global vx = value.(x)
+            println(sum(sqrt((i-k)^2+(j-l)^2)*vy[i,j,k,l] for i in 1:n for j in 1:n for k in 1:n for l in 1:n)/sum(vx[i,j] for i in 1:n for j in 1:n))
 
-
-
-
-function dinkelbach_algorithm(lambda0)
-    lambda = lambda0
-    
-    while true
-        # Step 2: Calculate v(λ) and Find xλ such that v(λ) = f(xλ) - λg(xλ)
-        v_lambda,new_lambda, model = solve(n, Amin, Amax, B, lambda0, M, c) 
-        
-        if v_lambda > 0 && v_lambda < 1e-6
-            # Step 4: Update λ
-            lambda = new_lambda
-        else
-            # xλ is an optimal solution of (P)
-            return model
+            break
         end
     end
 end
 
+println("Nombre de noeuds explorés : ",JuMP.node_count(m))
+
+println("Itérations : ", compteur)
+
+end_time = time()
+println("Execution time : ", end_time-start_time)
+
+println("Paramètres")
+println("n : ", n)
+println("Amin : ", Amin)
+println("Amax : ", Amax)
+println("B : ", B)
