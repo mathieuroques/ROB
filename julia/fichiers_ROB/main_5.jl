@@ -1,5 +1,5 @@
 using JuMP
-using GLPK
+using CPLEX
 
 
 NbParcelles=40;
@@ -56,8 +56,8 @@ function solve(NbParcelles::Int, NbArc::Int, T::Int, SURF::Int, lmax::Int, amax:
 
     time_start = time()
     # Create a JuMP model
-    model = Model(GLPK.Optimizer)
-    set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_ALL)
+    model = Model(CPLEX.Optimizer)
+    # set_optimizer_attribute(model, "msg_lev", GLPK.GLP_MSG_ALL)
 
     # Define variables
     @variable(model, x[1:NbParcelles, 1:T, 1:NbArc] >= 0, Bin)
